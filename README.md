@@ -12,74 +12,78 @@ This repo trains an interpretable model that predicts a composite mental health 
 - `src/predict.py` — loads artifacts and runs predictions with explanations
 - `app.py` — Streamlit web application with modern UI/UX
 
-## Setup
+## Setup (all commands from repo root)
 
-### 1. Create a Virtual Environment (Recommended)
+1) Create & activate a virtual environment
 
 ```bash
 python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate          # Windows: venv\Scripts\activate
 ```
 
-### 2. Install Dependencies
+2) Install core dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Training the Random Forest Model
+## Train models
 
-First, train the core Random Forest model using the training script (make sure your virtual environment is activated):
+### Train the primary Random Forest (used by the app)
 
 ```bash
+source venv/bin/activate
 python -m src.train
 ```
 
-This will create the necessary model files in the `models/` directory.
+Outputs:
+- `models/mental_health_model.pkl`
+- `models/feature_names.json`
 
-## (Optional) Training the XGBoost Baseline
-
-The research paper also reports results for a more complex **XGBoost** baseline model, trained on the same dataset and feature set. This baseline is **not used by the app**, but you can reproduce it for comparison.
-
-### 1. Install extra dependency
-
-Inside your virtual environment:
+### (Optional) Train the XGBoost baseline
 
 ```bash
-pip install xgboost
-```
-
-On macOS, XGBoost may also require the OpenMP runtime. If you see an error about `libomp.dylib` when importing xgboost, install it via Homebrew:
-
-```bash
-brew install libomp
-```
-
-### 2. Train the XGBoost model
-
-From the project root, with the virtual environment activated:
-
-```bash
+source venv/bin/activate
+pip install xgboost               # macOS may also need: brew install libomp
 python -m src.train_xgb
 ```
 
-This will:
+Outputs:
+- `models/mental_health_xgb.pkl` (baseline only; app still uses the Random Forest)
 
-- Train an `XGBRegressor` with the hyperparameters described in the paper.
-- Evaluate it on the same 80/20 train–test split used by the Random Forest and print MAE and R².
-- Save the baseline model to `models/mental_health_xgb.pkl` for reference.
+## Run predictions from the command line
 
-Again, the Streamlit app continues to use only the Random Forest model; the XGBoost baseline exists purely for experimental comparison.
-
-## Running the Web Application
-
-Launch the Streamlit app with (make sure your virtual environment is activated):
+Interactive demo (prompts for inputs and prints results):
 
 ```bash
+source venv/bin/activate
+python -m src.predict
+```
+
+Programmatic example:
+
+```bash
+source venv/bin/activate
+python - <<'PY'
+from src.predict import predict_mental_health
+features = {
+    "screen_time_hours": 6.5,
+    "social_media_platforms_used": 3,
+    "hours_on_TikTok": 1.5,
+    "sleep_hours": 7.0,
+}
+print(predict_mental_health(features))
+PY
+```
+
+## Run the Streamlit app
+
+```bash
+source venv/bin/activate
 streamlit run app.py
 ```
 
-The app will open in your default web browser, typically at `http://localhost:8501`.
+The app opens at `http://localhost:8501`. Ensure the Random Forest model artifacts exist in `models/` (run `python -m src.train` if not).
 
 ### Features
 

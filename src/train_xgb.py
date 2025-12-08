@@ -30,12 +30,12 @@ def train_xgboost():
     df: pd.DataFrame = load_dataset()
 
     # Same feature set as the Random Forest model
+    # Exclude stress_level since it's part of the target definition (mental_health_score = mood - stress)
     feature_names = [
         "screen_time_hours",
         "social_media_platforms_used",
         "hours_on_TikTok",
         "sleep_hours",
-        "stress_level",
     ]
 
     X = df[feature_names].values

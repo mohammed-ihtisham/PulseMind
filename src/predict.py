@@ -53,8 +53,7 @@ def predict_mental_health(user_features: Dict[str, float]) -> Dict[str, Any]:
         "screen_time_hours": 7.5,
         "social_media_platforms_used": 3,
         "hours_on_TikTok": 2.0,
-        "sleep_hours": 6.0,
-        "stress_level": 7
+        "sleep_hours": 6.0
     }
     """
     timestamp("Starting predict_mental_health()")
@@ -127,30 +126,74 @@ def predict_mental_health(user_features: Dict[str, float]) -> Dict[str, Any]:
 
 
 def demo():
-    timestamp("Demo started")
-
-    example_user = {
-        "screen_time_hours": 8.5,
-        "social_media_platforms_used": 4,
-        "hours_on_TikTok": 3.0,
-        "sleep_hours": 5.5,
-        "stress_level": 8,
-    }
-
-    result = predict_mental_health(example_user)
-
-    print("===== Prediction Result =====")
-    print(f"Predicted mental health score: {result['predicted_score']:.3f}")
-    print(f"Risk category: {result['risk_category']}")
-    print(f"Model base value: {result['base_value']:.3f}")
-    print("\nTop contributing factors (by normalized contribution):")
-    for contrib in result["contributions"][:5]:
-        print(
-            f"  - {contrib['feature']}: "
-            f"value={contrib['value']}, "
-            f"norm_contrib={contrib['normalized_contribution']:.3f} "
-            f"({contrib['direction']})"
-        )
+    """Interactive demo that prompts user for input values and displays prediction results."""
+    print("\n" + "="*60)
+    print("🧠 PulseMind - Mental Health Prediction Demo")
+    print("="*60)
+    print("\nPlease enter your digital habits and lifestyle information:\n")
+    
+    # Collect user input with helpful descriptions
+    user_features = {}
+    
+    try:
+        print("📱 Screen Time")
+        screen_time = float(input("  How many hours per day do you spend on screens? (0-24): "))
+        user_features["screen_time_hours"] = screen_time
+        
+        print("\n🌐 Social Media")
+        platforms = int(input("  How many social media platforms do you actively use? (0-10): "))
+        user_features["social_media_platforms_used"] = platforms
+        
+        print("\n🎵 TikTok Usage")
+        tiktok_hours = float(input("  How many hours per day do you spend on TikTok? (0-12): "))
+        user_features["hours_on_TikTok"] = tiktok_hours
+        
+        print("\n😴 Sleep")
+        sleep_hours = float(input("  How many hours of sleep do you get per night? (0-12): "))
+        user_features["sleep_hours"] = sleep_hours
+        
+        print("\n" + "-"*60)
+        print("Processing your input...")
+        print("-"*60 + "\n")
+        
+        result = predict_mental_health(user_features)
+        
+        # Display results
+        print("\n" + "="*60)
+        print("📊 PREDICTION RESULTS")
+        print("="*60)
+        print(f"\n🎯 Mental Health Score: {result['predicted_score']:.3f}")
+        print(f"⚠️  Risk Category: {result['risk_category']} Risk")
+        
+        # Risk category explanation
+        risk_explanations = {
+            "Low": "✅ You're doing well! Keep maintaining healthy digital habits.",
+            "Medium": "⚠️  Some areas need attention. Consider the recommendations below.",
+            "High": "🔴 Prioritize your well-being. Focus on reducing stress and improving sleep."
+        }
+        print(f"   {risk_explanations.get(result['risk_category'], '')}")
+        
+        print("\n" + "-"*60)
+        print("📈 TOP CONTRIBUTING FACTORS")
+        print("-"*60)
+        for i, contrib in enumerate(result["contributions"][:5], 1):
+            direction_icon = "⬆️" if contrib['direction'] == "increases_score" else "⬇️"
+            feature_name = contrib['feature'].replace('_', ' ').title()
+            print(f"\n{i}. {feature_name}")
+            print(f"   Value: {contrib['value']}")
+            print(f"   Contribution: {contrib['normalized_contribution']:.4f} {direction_icon}")
+            print(f"   Impact: {contrib['direction'].replace('_', ' ').title()}")
+        
+        print("\n" + "="*60)
+        print("✨ Analysis Complete!")
+        print("="*60 + "\n")
+        
+    except ValueError as e:
+        print(f"\n❌ Error: Invalid input. Please enter a valid number.\nDetails: {e}\n")
+    except KeyboardInterrupt:
+        print("\n\n👋 Demo cancelled by user.\n")
+    except Exception as e:
+        print(f"\n❌ Error occurred: {e}\n")
 
 
 if __name__ == "__main__":

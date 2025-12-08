@@ -56,14 +56,13 @@ def train_model(df: pd.DataFrame):
     Train a RandomForestRegressor to predict mental_health_score from
     a set of interpretable features.
     """
-    # Feature set: we exclude mood_score (it's part of the target definition)
-    # but include stress_level as a predictor.
+    # Feature set: we exclude mood_score and stress_level (both are part of the target definition).
+    # The model predicts mental_health_score = mood_score - stress_level from observable digital habits.
     feature_names = [
         "screen_time_hours",
         "social_media_platforms_used",
         "hours_on_TikTok",
         "sleep_hours",
-        "stress_level",
     ]
 
     X = df[feature_names].values

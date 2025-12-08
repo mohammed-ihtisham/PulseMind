@@ -1,11 +1,23 @@
 from pathlib import Path
 
-# Risk thresholds for the mental health score
-# score < -2   -> High risk
-# -2 <= score <= 2 -> Medium risk
-# score > 2    -> Low risk
-HIGH_RISK_THRESHOLD = -2
-LOW_RISK_THRESHOLD = 2
+# Risk thresholds for the mental health score (balanced quintile-based system)
+# Critical Risk: score < 0
+# High Risk: 0 <= score < 2
+# Medium Risk: 2 <= score < 4
+# Low Risk: 4 <= score < 6
+# Healthy: score >= 6
+CRITICAL_RISK_THRESHOLD = 0
+HIGH_RISK_THRESHOLD = 2
+MEDIUM_RISK_THRESHOLD_LOW = 2
+MEDIUM_RISK_THRESHOLD_HIGH = 4
+LOW_RISK_THRESHOLD_LOW = 4
+LOW_RISK_THRESHOLD_HIGH = 6
+HEALTHY_THRESHOLD = 6
+
+# Backward compatibility: old threshold names (for figure generation scripts)
+# These represent the old 3-tier system boundaries
+OLD_HIGH_RISK_THRESHOLD = -2  # Old high risk threshold
+OLD_LOW_RISK_THRESHOLD = 2    # Old low risk threshold
 
 
 def get_project_root() -> Path:
@@ -48,11 +60,22 @@ def compute_mental_health_score(mood_score: float, stress_level: float) -> float
 
 def categorize_risk(score: float) -> str:
     """
-    Map a mental health score to a risk category: 'High', 'Medium', or 'Low'.
+    Map a mental health score to a risk category: 'Critical', 'High', 'Medium', 'Low', or 'Healthy'.
+    
+    Categories based on balanced quintile thresholds [0, 2, 4, 6]:
+    - Critical: score < 0
+    - High: 0 <= score < 2
+    - Medium: 2 <= score < 4
+    - Low: 4 <= score < 6
+    - Healthy: score >= 6
     """
-    if score < HIGH_RISK_THRESHOLD:
+    if score < CRITICAL_RISK_THRESHOLD:
+        return "Critical"
+    elif score < HIGH_RISK_THRESHOLD:
         return "High"
-    elif score <= LOW_RISK_THRESHOLD:
+    elif score < MEDIUM_RISK_THRESHOLD_HIGH:
         return "Medium"
-    else:
+    elif score < LOW_RISK_THRESHOLD_HIGH:
         return "Low"
+    else:
+        return "Healthy"
