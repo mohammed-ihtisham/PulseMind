@@ -912,12 +912,83 @@ st.markdown(
         border-radius: 20px;
     }
 
+    /* Prediction loading overlay */
+    .prediction-loader-backdrop {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at 30% 20%, rgba(99, 102, 241, 0.18), transparent 35%), rgba(5, 6, 15, 0.82);
+        backdrop-filter: blur(10px);
+        z-index: 9999;
+    }
+    
+    .prediction-loader {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.75rem 2rem;
+        background: rgba(12, 16, 32, 0.9);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        border-radius: 22px;
+        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+        min-width: 280px;
+    }
+    
+    .prediction-loader .ring {
+        width: 86px;
+        height: 86px;
+        border-radius: 50%;
+        background: conic-gradient(from 0deg, #8b5cf6, #06b6d4, #ec4899, #8b5cf6);
+        animation: loader-spin 1.2s linear infinite;
+        position: relative;
+        filter: drop-shadow(0 0 16px rgba(139, 92, 246, 0.45));
+    }
+    
+    .prediction-loader .ring::after {
+        content: "";
+        position: absolute;
+        inset: 8px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, rgba(12, 16, 32, 0.95), rgba(5, 6, 15, 0.95));
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    }
+    
+    .prediction-loader .orb {
+        position: absolute;
+        top: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #ffffff, #a78bfa);
+        box-shadow: 0 0 12px rgba(167, 139, 250, 0.8), 0 0 28px rgba(6, 182, 212, 0.65);
+        animation: loader-spin 1.2s linear infinite;
+        z-index: 2;
+    }
+    
+    .prediction-loader p {
+        margin: 0;
+        color: rgba(248, 250, 252, 0.92);
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }
+    
+    @keyframes loader-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
     /* Modern section headings */
     h4 {
         font-size: 1.3rem !important;
         font-weight: 700 !important;
         letter-spacing: -0.01em !important;
-        margin: 2rem 0 1rem 0 !important;
+        margin: 0 0 0.75rem 0 !important;
         color: var(--text-primary) !important;
         background: linear-gradient(135deg, #ffffff, rgba(203, 213, 225, 0.9));
         -webkit-background-clip: text;
@@ -979,6 +1050,24 @@ RISK_CLASS_MAP = {
     "Critical": "critical",
 }
 
+# Unified risk palette + scoring boundaries (keep bar + tag colors in sync)
+RISK_COLORS = {
+    "Healthy": {"primary": "#15803d", "secondary": "#166534", "text": "#e8f9ec"},
+    "Low": {"primary": "#86efac", "secondary": "#22c55e", "text": "#053218"},
+    "Medium": {"primary": "#facc15", "secondary": "#f59e0b", "text": "#1f1302"},
+    "High": {"primary": "#ef4444", "secondary": "#dc2626", "text": "#ffffff"},
+    "Critical": {"primary": "#dc2626", "secondary": "#b91c1c", "text": "#ffffff"},
+}
+
+SCORE_MIN = -8.0
+SCORE_MAX = 9.0
+SCORE_BOUNDARIES = {
+    "Critical": 0.0,
+    "High": 2.0,
+    "Medium": 4.0,
+    "Low": 6.0,
+}
+
 # Initialize all input values at top level (like the old working version)
 for key, value in DEFAULT_INPUTS.items():
     st.session_state.setdefault(key, value)
@@ -1017,14 +1106,26 @@ def run_prediction():
         # Convert to float, handling both int and float values
         user_features[key] = float(value)
     
+    loading_placeholder = st.empty()
+    loader_html = """
+    <div class="prediction-loader-backdrop">
+        <div class="prediction-loader">
+            <div class="ring"><span class="orb"></span></div>
+            <p>Analyzing your digital pulse...</p>
+        </div>
+    </div>
+    """
+
     try:
-        with st.spinner("Synthesizing your digital pulse..."):
-            result = predict_mental_health(user_features)
-            st.session_state.prediction_result = result
+        loading_placeholder.markdown(loader_html, unsafe_allow_html=True)
+        result = predict_mental_health(user_features)
+        st.session_state.prediction_result = result
         st.session_state.last_error = None
     except Exception as exc:
         st.session_state.prediction_result = None
         st.session_state.last_error = str(exc)
+    finally:
+        loading_placeholder.empty()
 
 
 def render_stepper(current_step: int, all_complete: bool = False):
@@ -1366,6 +1467,9 @@ def render_feature_contributions(result):
 
 
 def render_results(result):
+    # Anchor to auto-scroll when results appear
+    st.markdown('<div id="results-anchor"></div>', unsafe_allow_html=True)
+    
     st.markdown('<div class="section-title">Insight Report</div>', unsafe_allow_html=True)
     
     st.markdown(
@@ -1423,25 +1527,40 @@ def render_results(result):
         risk_class = RISK_CLASS_MAP.get(risk_label, "caution")
         # Format display: "Healthy" should not have "risk" suffix
         display_label = risk_label if risk_label == "Healthy" else f"{risk_label} Risk"
+        
+        colors = RISK_COLORS.get(risk_label, RISK_COLORS["Medium"])
+        pill_style = (
+            f"background: linear-gradient(120deg, {colors['primary']}, {colors['secondary']});"
+            f"color: {colors['text']};"
+        )
+        
+        # Evenly spaced spectrum stops for clearer visual segments (while marker stays exact)
+        stop_critical, stop_high, stop_medium, stop_low = 20, 40, 60, 80
+
+        bar_gradient = (
+            "linear-gradient(90deg, "
+            f"{RISK_COLORS['Critical']['primary']} 0%, {RISK_COLORS['Critical']['primary']} {stop_critical}%, "
+            f"{RISK_COLORS['High']['primary']} {stop_critical}%, {RISK_COLORS['High']['primary']} {stop_high}%, "
+            f"{RISK_COLORS['Medium']['primary']} {stop_high}%, {RISK_COLORS['Medium']['primary']} {stop_medium}%, "
+            f"{RISK_COLORS['Low']['primary']} {stop_medium}%, {RISK_COLORS['Low']['primary']} {stop_low}%, "
+            f"{RISK_COLORS['Healthy']['primary']} {stop_low}%, {RISK_COLORS['Healthy']['primary']} 100%)"
+        )
+        
         st.markdown(
-            f'<div class="risk-pill {risk_class}"><span>Risk category</span><strong>{display_label}</strong></div>',
+            f'<div class="risk-pill {risk_class}" style="{pill_style}"><span>Risk category</span><strong>{display_label}</strong></div>',
             unsafe_allow_html=True,
         )
         
-        # Calculate score position on spectrum (using quintile-based thresholds: 0, 2, 4, 6)
-        score = result["predicted_score"]
-        score_min, score_max = -8.0, 9.0  # Match actual data range
-        score_normalized = max(0, min(100, ((score - score_min) / (score_max - score_min)) * 100))
-        
-        # Determine marker color based on risk category
-        marker_colors = {
-            "Healthy": "#22c55e",
-            "Low": "#14b8a6",
-            "Medium": "#facc15",
-            "High": "#ef4444",
-            "Critical": "#dc2626"
+        # Place marker at the center of its risk segment for clearer categorical signal
+        category_centers = {
+            "Critical": 10,
+            "High": 30,
+            "Medium": 50,
+            "Low": 70,
+            "Healthy": 90,
         }
-        marker_color = marker_colors.get(risk_label, "#facc15")
+        score_normalized = category_centers.get(risk_label, 50)
+        marker_color = colors["primary"]
         
         # User-friendly mental health score descriptions by risk category
         score_descriptions = {
@@ -1453,6 +1572,14 @@ def render_results(result):
         }
         score_description = score_descriptions.get(risk_label, "Monitor your mental well-being score and consider adjustments to your digital habits.")
         
+        bounds_text = (
+            f"Critical (&lt; {SCORE_BOUNDARIES['Critical']:.0f}), "
+            f"High ({SCORE_BOUNDARIES['Critical']:.0f} to {SCORE_BOUNDARIES['High']:.0f}), "
+            f"Medium ({SCORE_BOUNDARIES['High']:.0f} to {SCORE_BOUNDARIES['Medium']:.0f}), "
+            f"Low ({SCORE_BOUNDARIES['Medium']:.0f} to {SCORE_BOUNDARIES['Low']:.0f}), "
+            f"Healthy (&ge; {SCORE_BOUNDARIES['Low']:.0f})"
+        )
+        
         st.markdown(
             f"""
             <div class="score-card">
@@ -1461,7 +1588,7 @@ def render_results(result):
                 <p>{score_description}</p>
                 <div class="score-spectrum">
                     <div class="score-spectrum-label">Score Range</div>
-                    <div class="score-spectrum-bar">
+                    <div class="score-spectrum-bar" style="background: {bar_gradient};">
                         <div class="score-spectrum-marker" style="left: {score_normalized}%; color: {marker_color};"></div>
                     </div>
                     <div class="score-spectrum-labels">
@@ -1473,7 +1600,7 @@ def render_results(result):
                     </div>
                 </div>
                 <div class="score-boundaries">
-                    <strong>Score Boundaries:</strong> Critical (&lt; 0), High (0 to 2), Medium (2 to 4), Low (4 to 6), Healthy (&ge; 6)
+                    <strong>Score Boundaries:</strong> {bounds_text}
                 </div>
             </div>
             """,
@@ -1482,6 +1609,23 @@ def render_results(result):
 
     st.markdown("#### Feature contributions & importance")
     render_feature_contributions(result)
+
+    # Smoothly scroll the freshly-added results into view
+    st.markdown(
+        """
+        <script>
+        (function() {
+          const anchor = document.getElementById('results-anchor');
+          if (!anchor || window.__pmScrolledToResults) return;
+          window.__pmScrolledToResults = true;
+          requestAnimationFrame(() => {
+            anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        })();
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.button("Start another scenario", use_container_width=True, on_click=restart_survey)
 
@@ -1576,11 +1720,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-# Check if all steps are complete (prediction has been run)
-all_steps_complete = st.session_state.prediction_result is not None
-render_stepper(current_step, all_complete=all_steps_complete)
-
 
 def render_digital_step():
     next_clicked = False
@@ -1711,12 +1850,17 @@ def render_rest_step():
         st.rerun()
 
 
-if current_step == 0:
-    render_digital_step()
-elif current_step == 1:
-    render_social_step()
-else:
-    render_rest_step()
+if compact_mode:
+    # Check if all steps are complete (prediction has been run)
+    all_steps_complete = st.session_state.prediction_result is not None
+    render_stepper(current_step, all_complete=all_steps_complete)
+
+    if current_step == 0:
+        render_digital_step()
+    elif current_step == 1:
+        render_social_step()
+    else:
+        render_rest_step()
 
 
 if st.session_state.last_error:
